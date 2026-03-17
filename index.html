@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Neo AI: Cold Logic v1.2</title>
+    <style>
+        :root {
+            --bg: #020617;
+            --panel: #0f172a;
+            --accent: #64748b;
+            --important: #94a3b8;
+            --text: #cbd5e1;
+        }
+        body { font-family: 'Pretendard', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; align-items: center; height: 100vh; margin: 0; }
+        #app { width: 100%; max-width: 600px; height: 95vh; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+        
+        #dashboard { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; font-size: 0.8em; opacity: 0.8; }
+        .stat-card { background: var(--panel); padding: 12px; border-radius: 4px; border-left: 2px solid var(--accent); }
+        .stat-card b { color: #fff; font-size: 1.1em; }
+        
+        #chat { flex: 1; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid #1e293b; display: flex; flex-direction: column; }
+        .bubble { margin-bottom: 12px; max-width: 80%; padding: 10px 14px; border-radius: 4px; font-size: 0.95em; line-height: 1.6; position: relative; }
+        .user { align-self: flex-end; background: #334155; color: #fff; border-right: 3px solid var(--important); }
+        .ai { align-self: flex-start; background: #1e293b; color: var(--text); border-left: 3px solid #475569; }
+
+        #input-container { display: flex; gap: 10px; background: var(--panel); padding: 12px; border-radius: 4px; border: 1px solid #1e293b; }
+        input { flex: 1; background: transparent; border: none; color: white; outline: none; font-size: 1em; }
+        button { background: #1e293b; border: 1px solid #334155; color: white; padding: 8px 20px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        button:hover { background: #334155; border-color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <h2 style="margin: 10px 0; color: var(--accent); letter-spacing: 2px; font-weight: 300;">NEO AI <span style="font-size: 0.5em; opacity: 0.5;">Priority Logic</span></h2>
+    
+    <div id="dashboard">
+        <div class="stat-card">메모리<br><b id="synapse-count">0</b></div>
+        <div class="stat-card">각인 단어<br><b id="priority-count">0</b></div>
+        <div class="stat-card">동기화<br><b id="mem-usage">0%</b></div>
+    </div>
+
+    <div id="chat"></div>
+
+    <div id="input-container">
+        <input id="input" placeholder="말해... 중요한 건 느낌표 붙이고." autocomplete="off">
+        <button onclick="process()">전송</button>
+    </div>
+</div>
+
+<script>
+    const brain = {
+        memory: JSON.parse(localStorage.getItem('neo_cold_v2')) || {
+            vocab: { n: [], v: [], a: [] },
+            priority: [] // 느낌표가 붙은 중요 단어 저장소
+        },
+        save() {
+            localStorage.setItem('neo_cold_v2', JSON.stringify(this.memory));
+            this.updateUI();
+        },
+        updateUI() {
+            const count = this.memory.vocab.n.length + this.memory.vocab.v.length;
+            const pCount = this.memory.priority.length;
+            document.getElementById('synapse-count').innerText = count;
+            document.getElementById('priority-count').innerText = pCount;
+            document.getElementById('mem-usage').innerText = Math.min(100, count).toFixed(0) + "%";
+        }
+    };
+
+    function getRole(word) {
+        if (word.length <= 1) return 'a'; 
+        if (/[다요죠나니까어아니]/.test(word.slice(-1))) return 'v';
+        return 'n';
+    }
+
+    function learn(text) {
+        const isImportant = text.includes('!');
+        // 느낌표와 물음표 제거 후 토큰화
+        const tokens = text.replace(/[!?]/g, '').split(/\s+/).filter(w => w.length > 0);
+        
+        tokens.forEach(word => {
+            let cleaned = word.replace(/[요죠]$/, ""); 
+            const role = getRole(cleaned);
+            
+            // 일반 단어 학습
+            if (!brain.memory.vocab[role].includes(cleaned)) {
+                brain.memory.vocab[role].push(cleaned);
+            }
+
+            // 느낌표가 있으면 각인 메모리에 추가 (최신 15개 유지)
+            if (isImportant) {
+                if (!brain.memory.priority.includes(cleaned)) {
+                    brain.memory.priority.push(cleaned);
+                    if (brain.memory.priority.length > 15) brain.memory.priority.shift();
+                }
+            }
+        });
+    }
+
+    const templates = [
+        { structure: ['n', 'v'], suffix: "..." },
+        { structure: ['n', 'n', 'v'], suffix: "... 그뿐이야." },
+        { structure: ['a', 'n', 'v'], suffix: "... 관심 없어." },
+        { structure: ['n', 'v'], suffix: "... 아마도." },
+        { structure: ['v'], suffix: "... 귀찮게 하지 마." }
+    ];
+
+    function generateResponse(input) {
+        const v = brain.memory.vocab;
+        const p = brain.memory.priority;
+        
+        if (input.includes("안녕")) return "어... 왔어.";
+        if (input.includes("이름")) return "이름 같은 거 없어...";
+        
+        if (v.n.length < 1 || v.v.length < 1) {
+            return "아직 아는 게 없어... 더 말해봐.";
+        }
+
+        const template = templates[Math.floor(Math.random() * templates.length)];
+        let result = template.structure.map(role => {
+            const list = v[role].length > 0 ? v[role] : v.n;
+            
+            // 40% 확률로 각인된 중요 단어를 우선적으로 꺼냄
+            const pMatch = p.filter(w => getRole(w) === role);
+            if (pMatch.length > 0 && Math.random() > 0.6) {
+                return pMatch[Math.floor(Math.random() * pMatch.length)];
+            }
+            
+            return list[Math.floor(Math.random() * list.length)];
+        });
+
+        let final = result.join(' ') + template.suffix;
+        
+        // 가끔 각인된 단어를 독백처럼 덧붙임
+        if (p.length > 0 && Math.random() > 0.8) {
+            final += ` 근데 ${p[Math.floor(Math.random() * p.length)]}... 이건 좀 그렇네.`;
+        }
+
+        return final;
+    }
+
+    function process() {
+        const inputEl = document.getElementById('input');
+        const text = inputEl.value.trim();
+        if (!text) return;
+
+        render('user', text);
+        learn(text);
+        
+        setTimeout(() => {
+            const reply = generateResponse(text);
+            render('ai', reply);
+            brain.save();
+        }, 500);
+
+        inputEl.value = "";
+    }
+
+    function render(type, text) {
+        const chat = document.getElementById('chat');
+        const div = document.createElement('div');
+        div.className = `bubble ${type}`;
+        div.innerText = text;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.getElementById('input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') process();
+    });
+
+    brain.updateUI();
+</script>
+
+</body>
+</html>
