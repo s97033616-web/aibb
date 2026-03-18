@@ -156,15 +156,12 @@
         const v = brain.memory.vocab;
         const p = brain.memory.priority;
         
-        // 이름 응답은 유지
-        if (input.includes("이름")) return "이름 같은 거 없어...";
-        
-        // 단어 데이터가 부족할 경우 예외 처리
+        // 데이터가 아예 없을 때의 예외 처리는 유지
         if (v.n.length < 1 || v.v.length < 1) {
-            return input.includes("안녕") ? "어... 왔어. 근데 아직 아는 게 없어." : "아직 아는 게 없어... 더 말해봐.";
+            return "아직 아는 게 없어... 더 말해봐.";
         }
 
-        // 문장 생성을 위한 템플릿 선택 및 단어 조합
+        // [1] 먼저 일반적인 논리 문장을 생성합니다.
         const template = templates[Math.floor(Math.random() * templates.length)];
         let result = template.structure.map(role => {
             const list = v[role].length > 0 ? v[role] : v.n;
@@ -177,16 +174,20 @@
 
         let final = result.join(' ') + template.suffix;
         
-        // 우선순위 단어 추가 (확률적)
         if (p.length > 0 && Math.random() > 0.8) {
             final += ` 근데 ${p[Math.floor(Math.random() * p.length)]}... 이건 좀 그렇네.`;
         }
 
-        // [수정 포인트] '안녕'이 포함되어 있으면 생성된 문장 앞에 인사를 붙임
+        // [2] 특정 키워드가 포함되면 고정 멘트 뒤에 생성된 문장(final)을 붙여서 반환합니다.
         if (input.includes("안녕")) {
             return "어... 왔어. " + final;
         }
+        
+        if (input.includes("이름")) {
+            return "이름 같은 거 없어... " + final;
+        }
 
+        // [3] 키워드가 없으면 생성된 문장만 반환합니다.
         return final;
     }
 
