@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Neo AI: Cold Logic v1.2</title>
+    <title>Neo AI: Cold Logic v1.3</title>
     <style>
         :root {
             --bg: #020617;
@@ -23,10 +23,15 @@
         .user { align-self: flex-end; background: #334155; color: #fff; border-right: 3px solid var(--important); }
         .ai { align-self: flex-start; background: #1e293b; color: var(--text); border-left: 3px solid #475569; }
 
+        /* 세이브 버튼 영역 */
+        #save-system { display: flex; gap: 10px; margin-bottom: 15px; }
+        .save-btn { flex: 1; padding: 10px; font-size: 0.75em; cursor: pointer; background: var(--panel); border: 1px solid #1e293b; color: var(--accent); border-radius: 4px; transition: 0.3s; }
+        .save-btn:hover { border-color: #fff; color: #fff; }
+
         #input-container { display: flex; gap: 10px; background: var(--panel); padding: 12px; border-radius: 4px; border: 1px solid #1e293b; }
         input { flex: 1; background: transparent; border: none; color: white; outline: none; font-size: 1em; }
-        button { background: #1e293b; border: 1px solid #334155; color: white; padding: 8px 20px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #334155; border-color: var(--accent); }
+        button#send-btn { background: #1e293b; border: 1px solid #334155; color: white; padding: 8px 20px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        button#send-btn:hover { background: #334155; border-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -37,24 +42,31 @@
     <div id="dashboard">
         <div class="stat-card">메모리<br><b id="synapse-count">0</b></div>
         <div class="stat-card">각인 단어<br><b id="priority-count">0</b></div>
-        <div class="stat-card">동기화<br><b id="mem-usage">0%</b></div>
+        <div class="stat-card">상태<br><b id="mem-status">Standby</b></div>
+    </div>
+
+    <div id="save-system">
+        <button class="save-btn" onclick="importMemory()">📥 기억 이식 (.json)</button>
+        <button class="save-btn" onclick="exportMemory()">💾 기억 고정 (Save)</button>
     </div>
 
     <div id="chat"></div>
 
     <div id="input-container">
         <input id="input" placeholder="말해... 중요한 건 느낌표 붙이고." autocomplete="off">
-        <button onclick="process()">전송</button>
+        <button id="send-btn" onclick="process()">전송</button>
     </div>
 </div>
 
 <script>
     const brain = {
+        // LocalStorage 로드
         memory: JSON.parse(localStorage.getItem('neo_cold_v2')) || {
             vocab: { n: [], v: [], a: [] },
-            priority: [] // 느낌표가 붙은 중요 단어 저장소
+            priority: [] 
         },
         save() {
+            // 브라우저 내부 즉시 저장
             localStorage.setItem('neo_cold_v2', JSON.stringify(this.memory));
             this.updateUI();
         },
@@ -63,9 +75,47 @@
             const pCount = this.memory.priority.length;
             document.getElementById('synapse-count').innerText = count;
             document.getElementById('priority-count').innerText = pCount;
-            document.getElementById('mem-usage').innerText = Math.min(100, count).toFixed(0) + "%";
+            document.getElementById('mem-status').innerText = count > 0 ? "Active" : "Empty";
         }
     };
+
+    // [수동 저장] JSON 파일 다운로드
+    function exportMemory() {
+        const data = JSON.stringify(brain.memory, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'memory.json'; // 파일명 고정
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // [불러오기] JSON 파일 읽기
+    function importMemory() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = event => {
+                try {
+                    const imported = JSON.parse(event.target.result);
+                    brain.memory = imported;
+                    brain.save(); // LocalStorage 동기화
+                    alert("기억을 성공적으로 이식했습니다.");
+                    location.reload(); 
+                } catch(err) {
+                    alert("잘못된 기억 파일입니다.");
+                }
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
 
     function getRole(word) {
         if (word.length <= 1) return 'a'; 
@@ -75,19 +125,16 @@
 
     function learn(text) {
         const isImportant = text.includes('!');
-        // 느낌표와 물음표 제거 후 토큰화
         const tokens = text.replace(/[!?]/g, '').split(/\s+/).filter(w => w.length > 0);
         
         tokens.forEach(word => {
             let cleaned = word.replace(/[요죠]$/, ""); 
             const role = getRole(cleaned);
             
-            // 일반 단어 학습
             if (!brain.memory.vocab[role].includes(cleaned)) {
                 brain.memory.vocab[role].push(cleaned);
             }
 
-            // 느낌표가 있으면 각인 메모리에 추가 (최신 15개 유지)
             if (isImportant) {
                 if (!brain.memory.priority.includes(cleaned)) {
                     brain.memory.priority.push(cleaned);
@@ -119,19 +166,15 @@
         const template = templates[Math.floor(Math.random() * templates.length)];
         let result = template.structure.map(role => {
             const list = v[role].length > 0 ? v[role] : v.n;
-            
-            // 40% 확률로 각인된 중요 단어를 우선적으로 꺼냄
             const pMatch = p.filter(w => getRole(w) === role);
             if (pMatch.length > 0 && Math.random() > 0.6) {
                 return pMatch[Math.floor(Math.random() * pMatch.length)];
             }
-            
             return list[Math.floor(Math.random() * list.length)];
         });
 
         let final = result.join(' ') + template.suffix;
         
-        // 가끔 각인된 단어를 독백처럼 덧붙임
         if (p.length > 0 && Math.random() > 0.8) {
             final += ` 근데 ${p[Math.floor(Math.random() * p.length)]}... 이건 좀 그렇네.`;
         }
