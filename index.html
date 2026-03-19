@@ -125,14 +125,17 @@
 
     function learn(text) {
         const isImportant = text.includes('!');
-        // 정규식에서 [!?'"] 부분을 수정하여 따옴표도 제거 대상에 포함합니다.
-        const tokens = text.replace(/[!?'"]/g, '').split(/\s+/).filter(w => w.length > 0);
+        
+        // 1. 한글(가-힣), 알파벳(a-zA-Z), 숫자(0-9)가 아닌 모든 문자를 제거 (공백은 유지)
+        const cleanedText = text.replace(/[^가-힣a-zA-Z0-9\s]/g, '');
+        
+        // 2. 공백으로 나눠서 토큰화
+        const tokens = cleanedText.split(/\s+/).filter(w => w.length > 0);
         
         tokens.forEach(word => {
-            // 단어 끝의 '요', '죠'를 떼어낼 때도 따옴표가 남지 않도록 보장
+            // 단어 끝의 '요', '죠'를 제거 (말투 통일)
             let cleaned = word.replace(/[요죠]$/, "").trim(); 
-            
-            if (cleaned.length === 0) return; // 빈 문자열 제외
+            if (cleaned.length === 0) return;
 
             const role = getRole(cleaned);
             
