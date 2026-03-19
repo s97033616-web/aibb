@@ -125,10 +125,15 @@
 
     function learn(text) {
         const isImportant = text.includes('!');
-        const tokens = text.replace(/[!?]/g, '').split(/\s+/).filter(w => w.length > 0);
+        // 정규식에서 [!?'"] 부분을 수정하여 따옴표도 제거 대상에 포함합니다.
+        const tokens = text.replace(/[!?'"]/g, '').split(/\s+/).filter(w => w.length > 0);
         
         tokens.forEach(word => {
-            let cleaned = word.replace(/[요죠]$/, ""); 
+            // 단어 끝의 '요', '죠'를 떼어낼 때도 따옴표가 남지 않도록 보장
+            let cleaned = word.replace(/[요죠]$/, "").trim(); 
+            
+            if (cleaned.length === 0) return; // 빈 문자열 제외
+
             const role = getRole(cleaned);
             
             if (!brain.memory.vocab[role].includes(cleaned)) {
@@ -156,12 +161,11 @@
         const v = brain.memory.vocab;
         const p = brain.memory.priority;
         
-        // 데이터가 아예 없을 때의 예외 처리는 유지
         if (v.n.length < 1 || v.v.length < 1) {
             return "아직 아는 게 없어... 더 말해봐.";
         }
 
-        // [1] 먼저 일반적인 논리 문장을 생성합니다.
+        // [1] 논리 문장 생성 (템플릿에서 따옴표 제거)
         const template = templates[Math.floor(Math.random() * templates.length)];
         let result = template.structure.map(role => {
             const list = v[role].length > 0 ? v[role] : v.n;
@@ -172,13 +176,14 @@
             return list[Math.floor(Math.random() * list.length)];
         });
 
+        // suffix 부분의 마침표나 느낌표는 유지하되 따옴표는 넣지 않음
         let final = result.join(' ') + template.suffix;
         
         if (p.length > 0 && Math.random() > 0.8) {
             final += ` 근데 ${p[Math.floor(Math.random() * p.length)]}... 이건 좀 그렇네.`;
         }
 
-        // [2] 특정 키워드가 포함되면 고정 멘트 뒤에 생성된 문장(final)을 붙여서 반환합니다.
+        // [2] 특정 키워드 대응 (따옴표 없이 수정)
         if (input.includes("안녕")) {
             return "어... 왔어. " + final;
         }
@@ -187,7 +192,6 @@
             return "이름 같은 거 없어... " + final;
         }
 
-        // [3] 키워드가 없으면 생성된 문장만 반환합니다.
         return final;
     }
 
