@@ -32,6 +32,50 @@
         input { flex: 1; background: transparent; border: none; color: white; outline: none; font-size: 1em; }
         button#send-btn { background: #1e293b; border: 1px solid #334155; color: white; padding: 8px 20px; border-radius: 4px; cursor: pointer; transition: 0.2s; }
         button#send-btn:hover { background: #334155; border-color: var(--accent); }
+        /* 프로필과 메시지를 감싸는 컨테이너 */
+        .msg-wrapper { 
+            display: flex; 
+            align-items: flex-start; 
+            margin-bottom: 20px; /* 메시지 간 간격을 조금 더 넓힘 */
+            gap: 12px; 
+            background: transparent !important; /* 혹시 모를 배경색 강제 제거 */
+        }
+        .msg-wrapper.user { flex-direction: row-reverse; }
+
+        /* 프로필 이미지 스타일 */
+        .profile-img { 
+            width: 40px; height: 40px; border-radius: 50%; 
+            background: #1e293b; border: 1px solid #334155;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2em; flex-shrink: 0;
+        }
+
+        /* 이름과 버블을 묶는 영역 */
+        .msg-content { display: flex; flex-direction: column; background: transparent;}
+        .ai-name { font-size: 0.75em; color: var(--accent); margin-bottom: 4px; margin-left: 2px; }
+
+        /* 기존 bubble 수정 (margin-bottom 제거) */
+        .bubble { 
+            max-width: 80%; /* 너무 넓어지지 않게 조정 */
+            padding: 10px 16px; 
+            border-radius: 12px; /* 곡률을 높여서 더 부드럽게 */
+            font-size: 0.95em; 
+            line-height: 1.6; 
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* 입체감 살짝 추가 */
+        }
+        .user { 
+            background: #334155; 
+            color: #fff; 
+            border-right: 3px solid var(--important); 
+            border-top-right-radius: 2px; 
+        }
+        .ai { 
+            background: #1e293b; 
+            color: var(--text); 
+            border-left: 3px solid #475569; 
+            border-top-left-radius: 2px; 
+        }
     </style>
 </head>
 <body>
@@ -216,13 +260,45 @@
     }
 
     function render(type, text) {
-        const chat = document.getElementById('chat');
-        const div = document.createElement('div');
-        div.className = `bubble ${type}`;
-        div.innerText = text;
-        chat.appendChild(div);
-        chat.scrollTop = chat.scrollHeight;
+    const chat = document.getElementById('chat');
+    
+    // 전체를 감싸는 컨테이너 생성
+    const wrapper = document.createElement('div');
+    wrapper.className = `msg-wrapper ${type}`;
+
+    if (type === 'ai') {
+        // AI 프로필 이미지 (이모지나 이미지 URL 사용 가능)
+        const img = document.createElement('div');
+        img.className = 'profile-img';
+        img.innerHTML = '<img src="images/2.png" style="width:100%; border-radius:50%;">'; 
+
+        // 이름과 메시지 버블을 담는 컨텐츠 영역
+        const content = document.createElement('div');
+        content.className = 'msg-content';
+
+        const name = document.createElement('div');
+        name.className = 'ai-name';
+        name.innerText = 'Neo AI';
+
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${type}`;
+        bubble.innerText = text;
+
+        content.appendChild(name);
+        content.appendChild(bubble);
+        wrapper.appendChild(img);
+        wrapper.appendChild(content);
+    } else {
+        // 사용자 메시지 (단순 버블)
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${type}`;
+        bubble.innerText = text;
+        wrapper.appendChild(bubble);
     }
+
+    chat.appendChild(wrapper);
+    chat.scrollTop = chat.scrollHeight;
+}
 
     document.getElementById('input').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') process();
